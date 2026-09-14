@@ -9,7 +9,6 @@ import pytest
 
 from api.services.prompt_loader import DEFAULT_LANGUAGE
 from api.services.recipe_enhancer import (
-    DEFAULT_MODEL,
     EnhancementConfigError,
     EnhancementError,
     _flatten_metadata,
@@ -321,7 +320,7 @@ class TestEnhanceRecipe:
             mock_prompt.assert_called_once_with(DEFAULT_LANGUAGE, equipment=None, target_servings=4, dietary=None)
             mock_client.models.generate_content.assert_called_once()
             call_kwargs = mock_client.models.generate_content.call_args
-            assert call_kwargs.kwargs["model"] == DEFAULT_MODEL
+            assert call_kwargs.kwargs["model"] == "gemini-3.6-flash"
 
     def test_passes_language_to_system_prompt(self) -> None:
         """Should pass language parameter to load_system_prompt."""

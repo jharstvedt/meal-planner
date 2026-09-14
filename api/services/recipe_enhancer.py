@@ -40,7 +40,7 @@ except ImportError:  # pragma: no cover
     types = None  # type: ignore[assignment]
 
 # Default Gemini model
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.6-flash"
 
 # Retry settings for transient Gemini failures
 MAX_RETRIES = 3
@@ -198,7 +198,7 @@ def enhance_recipe(
 
     Args:
         recipe: Original recipe dict with title, ingredients, instructions
-        model: Gemini model to use (default: gemini-2.5-flash)
+        model: Gemini model to use (default: gemini-3.6-flash)
         language: Language code for locale-specific rules (default: sv)
         equipment: List of equipment keys from household settings
         target_servings: Number of servings to scale recipes to (from household settings)
