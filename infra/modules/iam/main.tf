@@ -27,7 +27,6 @@ locals {
   user_roles = [
     "projects/${var.project}/roles/mealPlannerInfraManager", # Temporary: Create/manage infrastructure
     "projects/${var.project}/roles/mealPlannerAppUser",      # Permanent: Runtime data access
-    "roles/viewer",                                          # Read-only access to all resources
   ]
 }
 
@@ -194,12 +193,9 @@ resource "google_service_account" "github_actions_viewer" {
   depends_on = [var.iam_api_service]
 }
 
-resource "google_project_iam_member" "github_actions_viewer" {
-  project = var.project
-  role    = "roles/viewer"
-  member  = "serviceAccount:${google_service_account.github_actions_viewer.email}"
-
-  depends_on = [google_service_account.github_actions_viewer]
+removed {
+  from = google_project_iam_member.github_actions_viewer
+  lifecycle { destroy = false }
 }
 
 # -----------------------------------------------------------------------------
@@ -261,6 +257,24 @@ resource "google_project_iam_binding" "prerequisite_roles" {
     var.iam_api_service,
     google_service_account.github_actions_terraform,
   ]
+}
+
+resource "google_project_iam_binding" "viewer_access" {
+  project = var.project
+  role    = "roles/viewer"
+  members = concat(local.user_members, [
+    "serviceAccount:${google_service_account.github_actions_viewer.email}",
+  ])
+
+  depends_on = [
+    var.iam_api_service,
+    google_service_account.github_actions_viewer,
+  ]
+}
+
+moved {
+  from = google_project_iam_binding.user_access["roles/viewer"]
+  to   = google_project_iam_binding.viewer_access
 }
 
 # Grant each role to all users (including superusers)

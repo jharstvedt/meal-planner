@@ -306,6 +306,7 @@ class TestAddMember:
             patch("api.routers.admin.household_storage.get_household", return_value=sample_household),
             patch("api.routers.admin.household_storage.get_user_membership", return_value=None),
             patch("api.routers.admin.household_storage.add_member") as mock_add,
+            patch("api.routers.admin.send_household_member_notification", return_value=True) as mock_send,
         ):
             response = superuser_client.post(
                 "/admin/households/test_household/members",
@@ -316,7 +317,14 @@ class TestAddMember:
         data = response.json()
         assert data["email"] == "new@example.com"
         assert data["role"] == "member"
+        assert data["notification_status"] == "sent"
         mock_add.assert_called_once()
+        mock_send.assert_awaited_once_with(
+            recipient_email="new@example.com",
+            inviter_name=None,
+            inviter_email="test@example.com",
+            household_name="Test Family",
+        )
 
     def test_admin_can_add_to_own(self, admin_client: TestClient, sample_household: Household) -> None:
         """Admin should be able to add members to their own household."""
@@ -330,6 +338,31 @@ class TestAddMember:
             )
 
         assert response.status_code == 201
+
+    def test_notification_failure_preserves_membership_success(
+        self, superuser_client: TestClient, sample_household: Household
+    ) -> None:
+        """Notification failures should not roll back successful membership creation."""
+        with (
+            patch("api.routers.admin.household_storage.get_household", return_value=sample_household),
+            patch("api.routers.admin.household_storage.get_user_membership", return_value=None),
+            patch("api.routers.admin.household_storage.add_member") as mock_add,
+            patch("api.routers.admin.send_household_member_notification", side_effect=RuntimeError("provider failure")),
+        ):
+            response = superuser_client.post(
+                "/admin/households/test_household/members", json={"email": "New@Example.com", "role": "member"}
+            )
+
+        assert response.status_code == 201
+        assert response.json()["email"] == "new@example.com"
+        assert response.json()["notification_status"] == "failed"
+        mock_add.assert_called_once_with(
+            household_id="test_household",
+            email="new@example.com",
+            role="member",
+            display_name=None,
+            invited_by="test@example.com",
+        )
 
     def test_user_already_in_household(
         self, superuser_client: TestClient, sample_household: Household, sample_membership: HouseholdMember

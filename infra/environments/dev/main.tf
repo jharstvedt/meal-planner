@@ -160,6 +160,12 @@ module "cloud_run" {
   gemini_secret_id   = module.secrets.gemini_api_key_secret_id
   gemini_secret_name = module.secrets.gemini_api_key_secret_name
 
+  # Household membership email notifications
+  resend_secret_id   = module.secrets.resend_api_key_secret_id
+  resend_secret_name = module.secrets.resend_api_key_secret_name
+  email_from         = var.email_from
+  app_url            = module.firebase.hosting_url
+
   # Scrape function URL
   scrape_function_url = module.cloud_function.function_url
 

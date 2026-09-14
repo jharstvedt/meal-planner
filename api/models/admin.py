@@ -2,6 +2,7 @@
 
 import re
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -81,6 +82,7 @@ class MemberResponse(BaseModel):
     household_id: str
     role: str
     display_name: str | None
+    notification_status: Literal["sent", "failed"] | None = None
 
 
 class RecipeTransfer(BaseModel):

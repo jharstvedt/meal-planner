@@ -3,6 +3,7 @@
 These endpoints require superuser or admin role access.
 """
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -25,8 +26,11 @@ from api.models.admin import (
     TransferResponse,
 )
 from api.models.settings import HouseholdSettings, HouseholdSettingsUpdate
+from api.services.email_notification import send_household_member_notification
 from api.storage import household_storage, recipe_storage
 from api.storage.recipe_queries import count_recipes
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -158,7 +162,8 @@ async def add_member(
     _require_admin_or_superuser(user, household_id)
 
     # Verify household exists
-    if household_storage.get_household(household_id) is None:
+    household = household_storage.get_household(household_id)
+    if household is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
 
     # Check if user is already a member of any household
@@ -173,16 +178,32 @@ async def add_member(
     if request.role not in ("admin", "member"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role must be 'admin' or 'member'")
 
+    normalized_email = request.email.lower()
     household_storage.add_member(
         household_id=household_id,
-        email=request.email,
+        email=normalized_email,
         role=request.role,
         display_name=request.display_name,
         invited_by=user.email,
     )
 
+    try:
+        notification_sent = await send_household_member_notification(
+            recipient_email=normalized_email,
+            inviter_name=user.name,
+            inviter_email=user.email,
+            household_name=household.name,
+        )
+    except Exception:
+        logger.exception("Unexpected error sending household member notification")
+        notification_sent = False
+
     return MemberResponse(
-        email=request.email, household_id=household_id, role=request.role, display_name=request.display_name
+        email=normalized_email,
+        household_id=household_id,
+        role=request.role,
+        display_name=request.display_name,
+        notification_status="sent" if notification_sent else "failed",
     )
 
 

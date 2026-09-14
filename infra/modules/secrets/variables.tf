@@ -9,6 +9,12 @@ variable "gemini_secret_id" {
   default     = "gemini-api-key"
 }
 
+variable "resend_secret_id" {
+  description = "Secret Manager secret ID for Resend API key"
+  type        = string
+  default     = "resend-api-key"
+}
+
 variable "secretmanager_api_service" {
   description = "Secret Manager API service (for dependency ordering)"
   type        = any

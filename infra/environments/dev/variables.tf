@@ -86,6 +86,12 @@ variable "backup_schedule" {
   default     = "0 3 * * *"
 }
 
+variable "email_from" {
+  description = "Verified sender address for transactional email"
+  type        = string
+  default     = ""
+}
+
 # External WIF bindings (repo names that need viewer-only access)
 # Set in terraform.tfvars (gitignored) — see terraform.tfvars.example
 variable "external_wif_repos" {

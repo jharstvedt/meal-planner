@@ -45,12 +45,21 @@ resource "google_secret_manager_secret_iam_member" "gemini_api_key" {
   member    = "serviceAccount:${google_service_account.api.email}"
 }
 
+# Grant Secret Manager access for Resend API key
+resource "google_secret_manager_secret_iam_member" "resend_api_key" {
+  count = var.resend_secret_id != "" ? 1 : 0
+
+  project   = var.project
+  secret_id = var.resend_secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.api.email}"
+}
+
 # Cloud Run service
 resource "google_cloud_run_v2_service" "api" {
   project  = var.project
   name     = var.service_name
   location = var.region
-
   # Allow unauthenticated access - Firebase Auth is validated in code
   ingress = "INGRESS_TRAFFIC_ALL"
 
@@ -128,6 +137,36 @@ resource "google_cloud_run_v2_service" "api" {
         }
       }
 
+      # Resend API key from Secret Manager
+      dynamic "env" {
+        for_each = var.resend_secret_name != "" ? [1] : []
+        content {
+          name = "RESEND_API_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = var.resend_secret_name
+              version = "latest"
+            }
+          }
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.email_from != "" ? [1] : []
+        content {
+          name  = "EMAIL_FROM"
+          value = var.email_from
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.app_url != "" ? [1] : []
+        content {
+          name  = "APP_URL"
+          value = var.app_url
+        }
+      }
+
       # Health check
       startup_probe {
         http_get {
@@ -166,6 +205,7 @@ resource "google_cloud_run_v2_service" "api" {
     var.run_api_service,
     google_project_iam_member.firestore_user,
     google_project_iam_member.firebase_auth,
+    google_secret_manager_secret_iam_member.resend_api_key,
   ]
 }
 

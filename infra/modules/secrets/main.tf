@@ -25,5 +25,22 @@ resource "google_secret_manager_secret" "gemini_api_key" {
   depends_on = [var.secretmanager_api_service]
 }
 
+# Resend API Key - Used for transactional email notifications
+resource "google_secret_manager_secret" "resend_api_key" {
+  project   = var.project
+  secret_id = var.resend_secret_id
+
+  replication {
+    auto {}
+  }
+
+  labels = {
+    purpose = "resend-api"
+    app     = "meal-planner"
+  }
+
+  depends_on = [var.secretmanager_api_service]
+}
+
 # Note: IAM binding for Cloud Run service account is in the cloud_run module
 # to avoid circular dependencies (cloud_run creates the SA, needs the secret name)

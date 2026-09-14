@@ -98,6 +98,31 @@ variable "gemini_secret_name" {
   default     = ""
 }
 
+# Email notification configuration
+variable "resend_secret_id" {
+  description = "Secret Manager secret ID for Resend API key"
+  type        = string
+  default     = ""
+}
+
+variable "resend_secret_name" {
+  description = "Full resource name of the Resend API key secret"
+  type        = string
+  default     = ""
+}
+
+variable "email_from" {
+  description = "Verified sender address for transactional email"
+  type        = string
+  default     = ""
+}
+
+variable "app_url" {
+  description = "Public application URL included in notification emails"
+  type        = string
+  default     = ""
+}
+
 variable "scrape_function_url" {
   description = "URL of the recipe scraping Cloud Function"
   type        = string
