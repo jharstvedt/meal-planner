@@ -4,8 +4,10 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { spacing, useTheme } from '@/lib/theme';
+
+const useNativeDriver = Platform.OS !== 'web';
 
 interface BouncingLoaderProps {
   color?: string;
@@ -30,12 +32,12 @@ export const BouncingLoader = ({ color, size = 12 }: BouncingLoaderProps) => {
           Animated.timing(animatedValue, {
             toValue: -12,
             duration: 300,
-            useNativeDriver: true,
+            useNativeDriver,
           }),
           Animated.timing(animatedValue, {
             toValue: 0,
             duration: 300,
-            useNativeDriver: true,
+            useNativeDriver,
           }),
         ]),
       );

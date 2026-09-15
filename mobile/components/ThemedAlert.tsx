@@ -33,6 +33,7 @@ interface ThemedAlertProps {
 }
 
 const ANIMATION_DURATION = 200;
+const useNativeDriver = Platform.OS !== 'web';
 
 export const shouldStackAlertButtons = (buttonCount: number, _width?: number) =>
   buttonCount > 2;
@@ -85,13 +86,13 @@ export const ThemedAlert = ({ alert, onDismiss }: ThemedAlertProps) => {
         Animated.timing(opacity, {
           toValue: 1,
           duration: ANIMATION_DURATION,
-          useNativeDriver: true,
+          useNativeDriver,
         }),
         Animated.spring(scale, {
           toValue: 1,
           friction: 8,
           tension: 100,
-          useNativeDriver: true,
+          useNativeDriver,
         }),
       ]).start();
     } else {
@@ -104,7 +105,7 @@ export const ThemedAlert = ({ alert, onDismiss }: ThemedAlertProps) => {
     Animated.timing(opacity, {
       toValue: 0,
       duration: ANIMATION_DURATION / 2,
-      useNativeDriver: true,
+      useNativeDriver,
     }).start(() => onDismiss(button));
   };
 

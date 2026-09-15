@@ -10,10 +10,14 @@ import React from 'react';
 import {
   Animated,
   type GestureResponderEvent,
+  Platform,
   Pressable,
   Text,
   View,
 } from 'react-native';
+
+const useNativeDriver = Platform.OS !== 'web';
+
 import { IconButton } from '@/components/IconButton';
 import { ThemeIcon } from '@/components/ThemeIcon';
 import { hapticLight } from '@/lib/haptics';
@@ -74,7 +78,7 @@ export const RecipeCard = ({
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
       toValue: 0.98,
-      useNativeDriver: true,
+      useNativeDriver,
       damping: 15,
       stiffness: 200,
     }).start();
@@ -83,7 +87,7 @@ export const RecipeCard = ({
   const handlePressOut = () => {
     Animated.spring(scaleAnim, {
       toValue: 1,
-      useNativeDriver: true,
+      useNativeDriver,
       damping: 15,
       stiffness: 200,
     }).start();

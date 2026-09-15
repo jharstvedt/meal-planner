@@ -22,6 +22,8 @@ import {
 } from 'react-native';
 import { useTheme } from '@/lib/theme';
 
+const useNativeDriver = Platform.OS !== 'web';
+
 interface AnimatedPressableProps extends Omit<PressableProps, 'style'> {
   children: React.ReactNode;
   style?:
@@ -65,7 +67,7 @@ export const AnimatedPressable = ({
       if (useSpring) {
         Animated.spring(scaleAnim, {
           toValue,
-          useNativeDriver: true,
+          useNativeDriver,
           damping: 22,
           stiffness: 220,
         }).start();
@@ -73,7 +75,7 @@ export const AnimatedPressable = ({
         Animated.timing(scaleAnim, {
           toValue,
           duration: animationDuration,
-          useNativeDriver: true,
+          useNativeDriver,
         }).start();
       }
     },
@@ -107,11 +109,11 @@ export const AnimatedPressable = ({
             Animated.timing(scaleAnim, {
               toValue: pressScale,
               duration: 80,
-              useNativeDriver: true,
+              useNativeDriver,
             }),
             Animated.spring(scaleAnim, {
               toValue: hoverScale,
-              useNativeDriver: true,
+              useNativeDriver,
               damping: 14,
               stiffness: 300,
             }),

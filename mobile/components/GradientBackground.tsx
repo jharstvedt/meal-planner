@@ -7,8 +7,10 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import type React from 'react';
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
 import { useTheme } from '@/lib/theme';
+
+const useNativeDriver = Platform.OS !== 'web';
 
 interface GradientBackgroundProps {
   children: React.ReactNode;
@@ -31,19 +33,19 @@ const AnimatedGradient = () => {
             toValue: 0.2,
             duration: 3500,
             easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
+            useNativeDriver,
           }),
           Animated.timing(opacity2, {
             toValue: 1,
             duration: 4000,
             easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
+            useNativeDriver,
           }),
           Animated.timing(opacity3, {
             toValue: 0.8,
             duration: 3000,
             easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
+            useNativeDriver,
           }),
         ]),
         Animated.parallel([
@@ -51,19 +53,19 @@ const AnimatedGradient = () => {
             toValue: 0.7,
             duration: 3000,
             easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
+            useNativeDriver,
           }),
           Animated.timing(opacity2, {
             toValue: 0.3,
             duration: 3500,
             easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
+            useNativeDriver,
           }),
           Animated.timing(opacity3, {
             toValue: 0.2,
             duration: 4000,
             easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
+            useNativeDriver,
           }),
         ]),
         Animated.parallel([
@@ -71,19 +73,19 @@ const AnimatedGradient = () => {
             toValue: 1,
             duration: 3200,
             easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
+            useNativeDriver,
           }),
           Animated.timing(opacity2, {
             toValue: 0,
             duration: 3800,
             easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
+            useNativeDriver,
           }),
           Animated.timing(opacity3, {
             toValue: 0.6,
             duration: 3400,
             easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
+            useNativeDriver,
           }),
         ]),
       ]),

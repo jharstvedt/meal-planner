@@ -21,6 +21,8 @@ import {
 } from 'react-native';
 import { useTheme } from '@/lib/theme';
 
+const useNativeDriver = Platform.OS !== 'web';
+
 export const CRTOverlay = () => {
   const { crt } = useTheme();
   const flickerAnim = useRef(new Animated.Value(1)).current;
@@ -33,12 +35,12 @@ export const CRTOverlay = () => {
         Animated.timing(flickerAnim, {
           toValue: crt.flickerMin,
           duration: crt.flickerMs,
-          useNativeDriver: true,
+          useNativeDriver,
         }),
         Animated.timing(flickerAnim, {
           toValue: 1,
           duration: crt.flickerMs,
-          useNativeDriver: true,
+          useNativeDriver,
         }),
       ]),
     );

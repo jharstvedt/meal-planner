@@ -7,11 +7,14 @@ import { useEffect, useRef } from 'react';
 import {
   Animated,
   type DimensionValue,
+  Platform,
   StyleSheet,
   View,
   type ViewStyle,
 } from 'react-native';
 import { spacing, useTheme } from '@/lib/theme';
+
+const useNativeDriver = Platform.OS !== 'web';
 
 interface SkeletonProps {
   width?: DimensionValue;
@@ -36,12 +39,12 @@ export const Skeleton = ({
         Animated.timing(opacity, {
           toValue: 0.7,
           duration: 800,
-          useNativeDriver: true,
+          useNativeDriver,
         }),
         Animated.timing(opacity, {
           toValue: 0.3,
           duration: 800,
-          useNativeDriver: true,
+          useNativeDriver,
         }),
       ]),
     );

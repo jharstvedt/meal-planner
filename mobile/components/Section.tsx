@@ -2,12 +2,16 @@ import { type ReactNode, useRef } from 'react';
 import {
   Animated,
   LayoutAnimation,
+  Platform,
   Pressable,
   type StyleProp,
   Text,
   View,
   type ViewStyle,
 } from 'react-native';
+
+const useNativeDriver = Platform.OS !== 'web';
+
 import { fontSize, spacing, useTheme } from '@/lib/theme';
 import { HelpTipIcon } from './HelpTip';
 import { IconCircle } from './IconCircle';
@@ -85,7 +89,7 @@ export const Section = ({
     Animated.timing(rotateAnim, {
       toValue: expanded ? 0 : 1,
       duration: 250,
-      useNativeDriver: true,
+      useNativeDriver,
     }).start();
     onToggle?.();
   };
