@@ -14,6 +14,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -32,10 +33,9 @@ interface ThemedAlertProps {
 }
 
 const ANIMATION_DURATION = 200;
-const STACKED_ALERT_BREAKPOINT = 420;
 
-export const shouldStackAlertButtons = (buttonCount: number, width: number) =>
-  buttonCount > 2 && width < STACKED_ALERT_BREAKPOINT;
+export const shouldStackAlertButtons = (buttonCount: number, _width?: number) =>
+  buttonCount > 2;
 
 const buttonTone = (style?: AlertButton['style']) => {
   if (style === 'destructive') return 'warning' as const;
@@ -147,33 +147,40 @@ export const ThemedAlert = ({ alert, onDismiss }: ThemedAlertProps) => {
             ]}
             testID="alert-card"
           >
-            <Text
-              style={[
-                styles.title,
-                {
-                  fontFamily: fonts.bodySemibold,
-                  color: colors.content.heading,
-                },
-              ]}
-              testID="alert-title"
+            <ScrollView
+              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ flexGrow: 0 }}
+              bounces={false}
+              showsVerticalScrollIndicator={false}
             >
-              {alert?.title}
-            </Text>
-
-            {alert?.message ? (
               <Text
                 style={[
-                  styles.message,
+                  styles.title,
                   {
-                    fontFamily: fonts.body,
-                    color: colors.content.body,
+                    fontFamily: fonts.bodySemibold,
+                    color: colors.content.heading,
                   },
                 ]}
-                testID="alert-message"
+                testID="alert-title"
               >
-                {alert.message}
+                {alert?.title}
               </Text>
-            ) : null}
+
+              {alert?.message ? (
+                <Text
+                  style={[
+                    styles.message,
+                    {
+                      fontFamily: fonts.body,
+                      color: colors.content.body,
+                    },
+                  ]}
+                  testID="alert-message"
+                >
+                  {alert.message}
+                </Text>
+              ) : null}
+            </ScrollView>
 
             <View
               style={[
@@ -192,7 +199,12 @@ export const ThemedAlert = ({ alert, onDismiss }: ThemedAlertProps) => {
                     tone={buttonTone(button.style)}
                     size="md"
                     onPress={() => handlePress(button)}
-                    style={styles.alertButton}
+                    style={[
+                      styles.alertButton,
+                      shouldStackButtons
+                        ? styles.alertButtonStacked
+                        : styles.alertButtonRow,
+                    ]}
                     testID={`alert-button-${button.text}`}
                   />
                 ))
@@ -202,7 +214,7 @@ export const ThemedAlert = ({ alert, onDismiss }: ThemedAlertProps) => {
                   variant="primary"
                   size="md"
                   onPress={() => handlePress()}
-                  style={styles.alertButton}
+                  style={[styles.alertButton, styles.alertButtonRow]}
                   testID="alert-button-OK"
                 />
               )}
@@ -229,11 +241,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing['3xl'],
+    padding: spacing.lg,
   },
   card: {
     width: 300,
     maxWidth: '100%',
+    maxHeight: '100%',
     overflow: 'hidden',
   },
   title: {
@@ -258,6 +271,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   alertButton: {
+    justifyContent: 'center',
+  },
+  alertButtonRow: {
     flex: 1,
+  },
+  alertButtonStacked: {
+    width: '100%',
   },
 });
