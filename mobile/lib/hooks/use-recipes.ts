@@ -16,6 +16,7 @@ import { useSettings } from '../settings-context';
 import type {
   DietLabel,
   EnhancementReviewAction,
+  FeaturedCategoriesResponse,
   MealLabel,
   MealPlan,
   PaginatedRecipeList,
@@ -24,6 +25,7 @@ import type {
   RecipePreview,
   RecipeUpdate,
 } from '../types';
+import { featuredKeys } from './use-featured-categories';
 
 // Query keys
 export const recipeKeys = {
@@ -263,7 +265,19 @@ export const useDeleteRecipe = () => {
       queryClient.removeQueries({
         queryKey: recipeKeys.detail(id),
       });
-      queryClient.invalidateQueries({ queryKey: recipeKeys.lists() });
+      queryClient.setQueriesData<FeaturedCategoriesResponse>(
+        { queryKey: featuredKeys.all },
+        (data) =>
+          data && {
+            ...data,
+            categories: data.categories.map((category) => ({
+              ...category,
+              recipes: category.recipes.filter((recipe) => recipe.id !== id),
+            })),
+          },
+      );
+      queryClient.invalidateQueries({ queryKey: recipeKeys.all });
+      queryClient.invalidateQueries({ queryKey: featuredKeys.all });
     },
   });
 };

@@ -159,15 +159,28 @@ describe('useDeleteRecipe', () => {
     vi.clearAllMocks();
   });
 
-  it('removes recipe from cache on success', async () => {
+  it('removes deleted recipe from detail and featured caches', async () => {
     mockApi.deleteRecipe.mockResolvedValue(undefined);
 
-    const queryClient = createTestQueryClient();
-    queryClient.setQueryData(['recipes', 'detail', 'abc'], mockRecipe({
-      id: 'abc',
-      title: 'Pasta',
-    }));
-    queryClient.setQueryData(['recipes', 'list'], [mockRecipe({ id: 'abc', title: 'Pasta' })]);
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    const deletedRecipe = mockRecipe({ id: 'abc', title: 'Pasta' });
+    const validRecipe = mockRecipe({ id: 'def', title: 'Soup' });
+    queryClient.setQueryData(['recipes', 'detail', 'abc'], deletedRecipe);
+    queryClient.setQueryData(['featured', 'categories'], {
+      categories: [
+        {
+          key: 'comfort-classics',
+          recipes: [deletedRecipe, validRecipe],
+        },
+      ],
+      season: 'winter',
+      time_of_day: 'evening',
+    });
 
     const wrapper = ({ children }: { children: React.ReactNode }) =>
       React.createElement(QueryClientProvider, { client: queryClient }, children);
@@ -178,9 +191,18 @@ describe('useDeleteRecipe', () => {
       await result.current.mutateAsync('abc');
     });
 
-    // Recipe-specific cache should be removed
-    const cached = queryClient.getQueryData(['recipes', 'detail', 'abc']);
-    expect(cached).toBeUndefined();
+    expect(mockApi.deleteRecipe).toHaveBeenCalledWith('abc');
+    expect(queryClient.getQueryData(['recipes', 'detail', 'abc'])).toBeUndefined();
+    expect(queryClient.getQueryData(['featured', 'categories'])).toEqual({
+      categories: [
+        {
+          key: 'comfort-classics',
+          recipes: [validRecipe],
+        },
+      ],
+      season: 'winter',
+      time_of_day: 'evening',
+    });
   });
 });
 
