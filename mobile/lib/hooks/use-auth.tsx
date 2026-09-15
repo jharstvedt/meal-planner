@@ -55,11 +55,12 @@ interface AuthProviderProps {
 
 const isAuthConfigured =
   isFirebaseConfigured &&
-  Boolean(
-    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
-      process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||
-      process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-  );
+  (Platform.OS === 'web' ||
+    Boolean(
+      process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+        process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||
+        process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    ));
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   if (!isAuthConfigured) {
