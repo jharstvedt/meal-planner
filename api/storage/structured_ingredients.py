@@ -3,7 +3,7 @@
 import logging
 from collections import deque
 from enum import StrEnum
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 import ingredient_parser
@@ -73,7 +73,7 @@ def structured_ingredients_status(ingredients: list[str], existing_data: object)
         MISSING if neither field is stored, MALFORMED if stored data fails validation or does not
         line up with ``ingredients``, STALE if the hash or versions differ, otherwise CURRENT.
     """
-    existing = existing_data if isinstance(existing_data, dict) else {}
+    existing: dict[str, Any] = cast("dict[str, Any]", existing_data) if isinstance(existing_data, dict) else {}
     items, meta = existing.get(STRUCTURED_INGREDIENTS_FIELD), existing.get(STRUCTURED_INGREDIENTS_META_FIELD)
     if items is None and meta is None:
         return StructuredStatus.MISSING
@@ -104,7 +104,8 @@ def assign_stable_ids(lines: list[str], previous_items: object = None) -> list[s
     for item in previous_items if isinstance(previous_items, list) else []:
         if not isinstance(item, dict):
             continue
-        item_id, raw_text = item.get("id"), item.get("raw_text")
+        entry = cast("dict[str, Any]", item)
+        item_id, raw_text = entry.get("id"), entry.get("raw_text")
         if not isinstance(item_id, str) or not item_id or item_id.startswith(_TEMP_ID_PREFIX) or item_id in seen:
             continue
         if isinstance(raw_text, str):
@@ -149,15 +150,16 @@ def structured_fields_for_write(ingredients: object, existing_data: object = Non
     Returns:
         Empty dict to leave stored fields untouched, regenerated fields, or DELETE_FIELD sentinels.
     """
-    existing = existing_data if isinstance(existing_data, dict) else {}
+    existing: dict[str, Any] = cast("dict[str, Any]", existing_data) if isinstance(existing_data, dict) else {}
     has_stored = STRUCTURED_INGREDIENTS_FIELD in existing or STRUCTURED_INGREDIENTS_META_FIELD in existing
     if not isinstance(ingredients, list):
         return _deleted_fields() if has_stored and not is_new else {}
+    lines = cast("list[str]", ingredients)
 
-    if structured_ingredients_status(ingredients, existing) is StructuredStatus.CURRENT:
+    if structured_ingredients_status(lines, existing) is StructuredStatus.CURRENT:
         return {}
 
-    fields = build_structured_fields(ingredients, existing.get(STRUCTURED_INGREDIENTS_FIELD))
+    fields = build_structured_fields(lines, existing.get(STRUCTURED_INGREDIENTS_FIELD))
     if fields is not None:
         return fields
     return {} if is_new else _deleted_fields()

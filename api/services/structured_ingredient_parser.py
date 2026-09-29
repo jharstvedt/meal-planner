@@ -8,7 +8,11 @@ from datetime import UTC, datetime
 from fractions import Fraction
 
 import ingredient_parser
-from ingredient_parser.dataclasses import IngredientAmount, ParsedIngredient as NlpParsedIngredient
+from ingredient_parser.dataclasses import (
+    CompositeIngredientAmount,
+    IngredientAmount,
+    ParsedIngredient as NlpParsedIngredient,
+)
 
 from api.models.structured_ingredient import (
     Measurement,
@@ -269,7 +273,11 @@ def _extract_measurements(parsed: NlpParsedIngredient, raw_text: str) -> tuple[l
     measurements: list[Measurement] = []
     unit_size: str | None = None
     cursor = 0
-    for amt in parsed.amount:
+    # Mixed-unit amounts like "1 lb 2 oz" become one measurement per component.
+    amounts = [
+        part for amt in parsed.amount for part in (amt.amounts if isinstance(amt, CompositeIngredientAmount) else [amt])
+    ]
+    for amt in amounts:
         amt_text = amt.text.strip()
         qty, qty_max, _ = _parse_amount_quantities(amt)
 

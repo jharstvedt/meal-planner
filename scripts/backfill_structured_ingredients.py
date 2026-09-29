@@ -21,6 +21,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
+from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -101,9 +102,10 @@ def _partial_lines(items: object) -> tuple[str, ...]:
     for item in items:
         if not isinstance(item, dict):
             continue
-        meta = item.get("parser_metadata") or {}
-        if item.get("name") is None or (isinstance(meta, dict) and meta.get("is_partial")):
-            partial.append(str(item.get("raw_text", "")))
+        entry = cast("dict[str, Any]", item)
+        meta = entry.get("parser_metadata") or {}
+        if entry.get("name") is None or (isinstance(meta, dict) and cast("dict[str, Any]", meta).get("is_partial")):
+            partial.append(str(entry.get("raw_text", "")))
     return tuple(partial)
 
 

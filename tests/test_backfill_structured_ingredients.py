@@ -1,5 +1,6 @@
 """Tests for the structured ingredient backfill script and shared status classification."""
 
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -22,7 +23,7 @@ def _doc(lines: object, *, structured: bool = True, **overrides: object) -> dict
     """Build a recipe doc; structured fields are derived from `lines` before overrides apply."""
     data: dict = {"title": "T", "ingredients": lines}
     if structured and isinstance(lines, list):
-        fields = build_structured_fields(lines)
+        fields = build_structured_fields(cast("list[str]", lines))
         assert fields is not None
         data.update(fields)
     data.update(overrides)

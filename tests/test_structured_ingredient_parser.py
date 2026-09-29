@@ -335,6 +335,13 @@ class TestStructuredIngredientParser:
         assert result.measurements[0].quantity_display == "1 1/2"
         assert result.measurements[0].unit_display == "cups"
 
+    def test_composite_amount_splits_into_measurements(self) -> None:
+        result = _parse("1 lb 2 oz ground beef")
+
+        assert result.name == "ground beef"
+        assert [(m.quantity, m.unit) for m in result.measurements] == [(1.0, "pound"), (2.0, "ounce")]
+        assert [m.unit_display for m in result.measurements] == ["lb", "oz"]
+
     def test_ranges_with_alternative_prep_and_note(self) -> None:
         raw = "1.5 - 2 cups (150 - 200g) cheddar or tasty cheese, shredded (Note 3)"
         result = _parse(raw)
@@ -436,8 +443,9 @@ class TestParseIngredientList:
         assert meta.parser_version == ingredient_parser.__version__
         assert meta.wrapper_version == WRAPPER_VERSION == "1"
         assert meta.ingredients_hash == compute_ingredients_hash(lines)
-        assert meta.parsed_at.tzinfo is not None
-        assert meta.parsed_at.utcoffset().total_seconds() == 0
+        offset = meta.parsed_at.utcoffset()
+        assert offset is not None
+        assert offset.total_seconds() == 0
 
     def test_empty_list(self) -> None:
         ingredients, meta = parse_ingredient_list([])
