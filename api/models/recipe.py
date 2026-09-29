@@ -7,6 +7,8 @@ from typing import Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, computed_field, field_validator
 
+from api.models.structured_ingredient import StructuredIngredient, StructuredIngredientsMeta
+
 MIN_RATING = 1
 MAX_RATING = 5
 _ERR_RATING_RANGE = "Rating must be between 1 and 5"
@@ -252,6 +254,13 @@ class Recipe(RecipeBase):
         default=False, description="Display enhanced version (False = show original until approved)"
     )
     enhancement_reviewed: bool = Field(default=False, description="User has reviewed the enhancement")
+    # Internal derived data; excluded from serialization until consumers adopt it
+    structured_ingredients: list[StructuredIngredient] | None = Field(
+        default=None, exclude=True, description="Parsed ingredients derived from `ingredients`"
+    )
+    structured_ingredients_meta: StructuredIngredientsMeta | None = Field(
+        default=None, exclude=True, description="How and from which ingredient lines structured data was produced"
+    )
 
     @computed_field
     @property

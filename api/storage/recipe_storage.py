@@ -12,6 +12,11 @@ from google.cloud.firestore_v1 import DELETE_FIELD, DocumentSnapshot, FieldFilte
 
 from api.models.recipe import DietLabel, MealLabel, OriginalRecipe, Recipe, RecipeCreate, RecipeUpdate
 from api.storage.firestore_client import RECIPES_COLLECTION, get_firestore_client
+from api.storage.structured_ingredients import (
+    apply_structured_write,
+    load_structured_fields,
+    structured_fields_for_write,
+)
 
 
 @dataclass
@@ -83,6 +88,7 @@ def _doc_to_recipe(doc_id: str, data: dict) -> Recipe:
         visibility=raw_vis if (raw_vis := data.get("visibility")) in ("household", "shared") else "household",
         created_by=data.get("created_by"),
         copied_from=data.get("copied_from"),
+        **load_structured_fields(data),
     )
 
 
@@ -156,39 +162,42 @@ def save_recipe(
         else db.collection(RECIPES_COLLECTION).document()
     )
 
-    # Snapshot original data before overwriting with enhanced version
-    original_snapshot: OriginalRecipe | None = None
-    existing_created_at: datetime | None = None
-    if meta.enhanced and recipe_id:
+    existing_data: dict | None = None
+    if recipe_id:
         existing = cast("DocumentSnapshot", doc_ref.get())
         if existing.exists:
             existing_data = existing.to_dict() or {}
-            existing_created_at = existing_data.get("created_at")
 
-            # Reuse preserved original snapshot if recipe was already enhanced
-            existing_original = existing_data.get("original")
-            if isinstance(existing_original, dict) and existing_original:
-                original_snapshot = OriginalRecipe(
-                    title=existing_original.get("title", ""),
-                    ingredients=existing_original.get("ingredients", []),
-                    instructions=existing_original.get("instructions", []),
-                    servings=existing_original.get("servings"),
-                    prep_time=existing_original.get("prep_time"),
-                    cook_time=existing_original.get("cook_time"),
-                    total_time=existing_original.get("total_time"),
-                    image_url=existing_original.get("image_url"),
-                )
-            else:
-                original_snapshot = OriginalRecipe(
-                    title=existing_data.get("title", ""),
-                    ingredients=existing_data.get("ingredients", []),
-                    instructions=existing_data.get("instructions", []),
-                    servings=existing_data.get("servings"),
-                    prep_time=existing_data.get("prep_time"),
-                    cook_time=existing_data.get("cook_time"),
-                    total_time=existing_data.get("total_time"),
-                    image_url=existing_data.get("image_url"),
-                )
+    # Snapshot original data before overwriting with enhanced version
+    original_snapshot: OriginalRecipe | None = None
+    existing_created_at: datetime | None = None
+    if meta.enhanced and existing_data is not None:
+        existing_created_at = existing_data.get("created_at")
+
+        # Reuse preserved original snapshot if recipe was already enhanced
+        existing_original = existing_data.get("original")
+        if isinstance(existing_original, dict) and existing_original:
+            original_snapshot = OriginalRecipe(
+                title=existing_original.get("title", ""),
+                ingredients=existing_original.get("ingredients", []),
+                instructions=existing_original.get("instructions", []),
+                servings=existing_original.get("servings"),
+                prep_time=existing_original.get("prep_time"),
+                cook_time=existing_original.get("cook_time"),
+                total_time=existing_original.get("total_time"),
+                image_url=existing_original.get("image_url"),
+            )
+        else:
+            original_snapshot = OriginalRecipe(
+                title=existing_data.get("title", ""),
+                ingredients=existing_data.get("ingredients", []),
+                instructions=existing_data.get("instructions", []),
+                servings=existing_data.get("servings"),
+                prep_time=existing_data.get("prep_time"),
+                cook_time=existing_data.get("cook_time"),
+                total_time=existing_data.get("total_time"),
+                image_url=existing_data.get("image_url"),
+            )
 
     now = datetime.now(tz=UTC)
     created_at = existing_created_at if existing_created_at else now
@@ -234,12 +243,20 @@ def save_recipe(
     if original_snapshot:
         data["original"] = original_snapshot.model_dump()
 
+    structured_update = structured_fields_for_write(recipe.ingredients, existing_data, is_new=existing_data is None)
+    data.update(structured_update)
+
     doc_ref.set(data, merge=True)
 
     # Type cast visibility to match Recipe model's Literal type
     visibility_value = data["visibility"]
     if visibility_value not in ("household", "shared"):
         visibility_value = "household"
+
+    # Merge semantics: unchanged stored structured fields survive the write
+    persisted_structured = apply_structured_write(
+        dict(existing_data) if isinstance(existing_data, dict) else {}, structured_update
+    )
 
     return Recipe(
         id=doc_ref.id,
@@ -254,6 +271,7 @@ def save_recipe(
         household_id=household_id,
         visibility=visibility_value,  # type: ignore[arg-type]
         created_by=created_by,
+        **load_structured_fields(persisted_structured),
         **recipe.model_dump(exclude={"household_id", "visibility", "created_by"}),
     )
 
@@ -303,6 +321,10 @@ def update_recipe(recipe_id: str, updates: RecipeUpdate, *, household_id: str | 
     if "title" in update_data:
         title_value = update_data["title"]
         update_data["title_lower"] = title_value.lower() if title_value else ""
+
+    existing = data if isinstance(data, dict) else {}
+    ingredients = update_data.get("ingredients", existing.get("ingredients", []))
+    update_data.update(structured_fields_for_write(ingredients, existing))
 
     doc_ref.update(update_data)
 
@@ -458,6 +480,8 @@ def remove_enhancement(recipe_id: str, *, household_id: str) -> Recipe | None:
         "tips": DELETE_FIELD,
         "updated_at": now,
     }
+    structured_update = structured_fields_for_write(update_data["ingredients"], data)
+    update_data.update(structured_update)
 
     doc_ref.update(update_data)
 
@@ -490,6 +514,7 @@ def remove_enhancement(recipe_id: str, *, household_id: str) -> Recipe | None:
             "updated_at": now,
         }
     )
+    apply_structured_write(restored_data, structured_update)
 
     return _doc_to_recipe(recipe_id, restored_data)
 

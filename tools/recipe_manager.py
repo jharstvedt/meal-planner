@@ -352,6 +352,12 @@ def update_recipe(recipe_id: str, updates: dict) -> None:
 
     from google.cloud.firestore_v1 import DELETE_FIELD
 
+    from api.storage.structured_ingredients import (
+        STRUCTURED_INGREDIENTS_FIELD,
+        STRUCTURED_INGREDIENTS_META_FIELD,
+        structured_fields_for_write,
+    )
+
     db = get_db(_project)
     doc_ref = db.collection(RECIPES_COLLECTION).document(recipe_id)
     doc = doc_ref.get()  # type: ignore[union-attr]
@@ -378,9 +384,19 @@ def update_recipe(recipe_id: str, updates: dict) -> None:
     else:
         print("\U0001f4dd Updating existing enhanced recipe")
 
-    protected_keys = {"original", "enhanced", "enhanced_at", "updated_at"}
+    protected_keys = {
+        "original",
+        "enhanced",
+        "enhanced_at",
+        "updated_at",
+        STRUCTURED_INGREDIENTS_FIELD,
+        STRUCTURED_INGREDIENTS_META_FIELD,
+    }
     safe_updates = {k: v for k, v in updates.items() if k not in protected_keys}
     update_payload.update(safe_updates)
+    update_payload.update(
+        structured_fields_for_write(update_payload.get("ingredients", current_data.get("ingredients")), current_data)
+    )
 
     update_payload["enhanced"] = True
     update_payload["enhanced_at"] = now
