@@ -7,7 +7,7 @@ from typing import Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, computed_field, field_validator
 
-from api.models.structured_ingredient import StructuredIngredient, StructuredIngredientsMeta
+from api.models.structured_ingredient import SourceIngredientsMeta, StructuredIngredient, StructuredIngredientsMeta
 
 MIN_RATING = 1
 MAX_RATING = 5
@@ -260,6 +260,12 @@ class Recipe(RecipeBase):
     )
     structured_ingredients_meta: StructuredIngredientsMeta | None = Field(
         default=None, exclude=True, description="How and from which ingredient lines structured data was produced"
+    )
+    source_ingredients: list[str] | None = Field(
+        default=None, exclude=True, description="Ingredient lines as received from the import source (write-once)"
+    )
+    source_ingredients_meta: SourceIngredientsMeta | None = Field(
+        default=None, exclude=True, description="Provenance of `source_ingredients`"
     )
 
     @computed_field

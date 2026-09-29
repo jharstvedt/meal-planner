@@ -15,7 +15,7 @@ All recipes (original and AI-enhanced) are stored in the same document. Enhanced
 
 ## Recipe Document Schema
 
-All fields must be at the **top level** (no nested objects), with two documented exceptions: the `original` snapshot for enhanced recipes, and the derived `structured_ingredients` / `structured_ingredients_meta` fields.
+All fields must be at the **top level** (no nested objects), with three documented exceptions: the `original` snapshot for enhanced recipes, the derived `structured_ingredients` / `structured_ingredients_meta` fields, and the `source_ingredients_meta` provenance dict.
 
 The `created_at` field is **required** for queries.
 
@@ -71,6 +71,10 @@ The `created_at` field is **required** for queries.
     # Derived structured ingredients (nested exception — never authoritative, never set by clients)
     "structured_ingredients": list[dict] | None,       # StructuredIngredient dumps, one per `ingredients` line
     "structured_ingredients_meta": dict | None,        # StructuredIngredientsMeta (parser/wrapper versions, ingredients_hash)
+
+    # Import-source provenance (nested exception for meta — write-once, never authoritative, never set by clients)
+    "source_ingredients": list[str] | None,            # Ingredient lines as returned by the scraper, verbatim (bounded)
+    "source_ingredients_meta": dict | None,            # SourceIngredientsMeta (extractor, import_method, captured_at, line_count, truncated)
 }
 ```
 
@@ -80,6 +84,14 @@ The `created_at` field is **required** for queries.
 - Any code that writes top-level `ingredients` MUST merge `structured_fields_for_write(...)` from `api/storage/structured_ingredients.py` into the same write. It regenerates when stale, reuses stable IDs, and emits `DELETE_FIELD` on parse failure so data never goes stale.
 - Parsing must never block a save. Consumers must check `is_structured_ingredients_current()` before trusting stored data.
 - Ingredient IDs are owned by persistence; strip caller-supplied structured fields from external input.
+
+## Source Ingredients
+
+- Captured server-side only, by `/recipes/scrape` and `/recipes/parse`, via `capture_source_ingredients()` in `api/storage/source_ingredients.py`, and passed to `save_recipe(source_ingredients=...)`.
+- Write-once: `save_recipe` writes them only when creating a new document. Updates, enhancement, review, and enhancement removal never touch them.
+- Never authoritative and never displayed: excluded from API responses; `ingredients` remains the source of truth.
+- Never set by clients: `RecipeCreate` / `RecipeUpdate` have no such fields, and `/recipes/preview` + `POST /recipes` saves carry no provenance. The mobile app imports via `/parse`/`/scrape` (the `review-recipe` preview screen is currently unreachable); if a preview-then-save flow is revived, carry provenance server-side (e.g. re-capture or a server-issued token), never from the client payload.
+- Absent on legacy docs and on copies; do not backfill or fabricate.
 
 ## Enhancement Data Flow
 

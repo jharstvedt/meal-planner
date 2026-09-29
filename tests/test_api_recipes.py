@@ -266,6 +266,24 @@ class TestCreateRecipe:
         assert response.status_code == 201
         assert response.json()["id"] == "test123"
 
+    def test_ignores_client_supplied_source_ingredients(self, client: TestClient, sample_recipe: Recipe) -> None:
+        """Should not let clients set import provenance."""
+        with patch("api.routers.recipes.recipe_storage.save_recipe", return_value=sample_recipe) as mock_save:
+            response = client.post(
+                "/recipes",
+                json={
+                    "title": "Test Recipe",
+                    "url": "https://example.com/recipe",
+                    "ingredients": ["flour"],
+                    "source_ingredients": ["forged"],
+                    "source_ingredients_meta": {"extractor": "x"},
+                },
+            )
+
+        assert response.status_code == 201
+        assert "source_ingredients" not in mock_save.call_args.kwargs
+        assert "source_ingredients" not in mock_save.call_args[0][0].model_dump()
+
 
 class TestScrapeRecipe:
     """Tests for POST /recipes/scrape endpoint."""
@@ -746,6 +764,10 @@ class TestScrapeRecipe:
         saved_create = mock_save.call_args[0][0]
         assert saved_create.diet_label.value == "veggie"
         assert saved_create.meal_label.value == "breakfast"
+        source = mock_save.call_args.kwargs["source_ingredients"]
+        assert source.lines == ["eggs"]
+        assert source.meta.import_method == "scrape"
+        assert source.meta.extractor == "recipe-scrapers"
 
 
 class TestParseRecipe:
@@ -891,6 +913,121 @@ class TestParseRecipe:
         saved_create = mock_save.call_args[0][0]
         assert saved_create.diet_label.value == "fish"
         assert saved_create.meal_label.value == "side_dish"
+        source = mock_save.call_args.kwargs["source_ingredients"]
+        assert source.lines == ["salmon"]
+        assert source.meta.import_method == "parse"
+
+    def test_parse_preserves_raw_source_lines(self, client: TestClient, sample_recipe: Recipe) -> None:
+        """Should pass scraper lines verbatim as provenance, separate from the sanitized RecipeCreate."""
+        raw_lines = ["  2 \u00bd dl  gr\u00e4dde ", "salt\x07"]
+        mock_cf_response = MagicMock()
+        mock_cf_response.status_code = 200
+        mock_cf_response.headers = {"content-type": "application/json"}
+        mock_cf_response.json.return_value = {
+            "title": "Raw",
+            "url": "https://example.com/raw",
+            "ingredients": raw_lines,
+            "instructions": ["Mix"],
+        }
+        mock_cf_response.raise_for_status = MagicMock()
+
+        with (
+            patch("api.routers.recipe_scraping.recipe_storage.find_recipe_by_url", return_value=None),
+            patch("api.routers.recipe_scraping.httpx.AsyncClient") as mock_client_class,
+            patch("api.routers.recipe_scraping.recipe_storage.save_recipe", return_value=sample_recipe) as mock_save,
+        ):
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_cf_response
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.__aexit__.return_value = None
+            mock_client_class.return_value = mock_client
+
+            response = client.post(
+                "/recipes/parse",
+                json={"url": "https://example.com/raw", "html": "<html><body>" + "x" * 100 + "</body></html>"},
+            )
+
+        assert response.status_code == 201
+        assert "source_ingredients" not in response.json()
+        assert mock_save.call_args.kwargs["source_ingredients"].lines == raw_lines
+
+
+class _FakeDocRef:
+    """Dict-backed stand-in for a Firestore document reference (set/merge, update, get)."""
+
+    def __init__(self, store: dict[str, dict], doc_id: str) -> None:
+        self._store = store
+        self.id = doc_id
+
+    def get(self) -> MagicMock:
+        data = self._store.get(self.id)
+        return MagicMock(exists=data is not None, id=self.id, to_dict=lambda: dict(data) if data else None)
+
+    def set(self, data: dict, *, merge: bool = False) -> None:
+        base = self._store.get(self.id, {}) if merge else {}
+        self._apply(base, data)
+
+    def update(self, data: dict) -> None:
+        self._apply(self._store[self.id], data)
+
+    def _apply(self, base: dict, data: dict) -> None:
+        from google.cloud.firestore_v1 import DELETE_FIELD
+
+        merged = dict(base)
+        for key, value in data.items():
+            if value is DELETE_FIELD:
+                merged.pop(key, None)
+            else:
+                merged[key] = value
+        self._store[self.id] = merged
+
+
+def _fake_firestore(store: dict[str, dict]) -> MagicMock:
+    """Build a fake Firestore client whose documents live in ``store``."""
+    db = MagicMock()
+    db.collection.return_value.document.side_effect = lambda doc_id="new_recipe": _FakeDocRef(store, doc_id)
+    return db
+
+
+class TestSourceIngredientLifecycle:
+    """End-to-end: provenance captured at import survives the real follow-up flow."""
+
+    def test_parse_provenance_survives_image_enhance_review_and_edit(self, client: TestClient) -> None:
+        """Should persist raw lines on /parse and keep them through image ingest, enhance, review, and edit."""
+        raw_lines = ["  2 \u00bd dl  gr\u00e4dde ", "1 c. flour"]
+        store: dict[str, dict] = {}
+        scraped = {"title": "Raw", "url": "https://example.com/raw", "ingredients": raw_lines, "instructions": ["Mix"]}
+        scraped["image_url"] = "https://example.com/raw.jpg"
+        image = MagicMock(hero_url="https://gcs/hero.jpg", thumbnail_url="https://gcs/thumb.jpg")
+        enhanced = {"title": "Better", "ingredients": ["2.5 dl cream", "120 g flour"], "changes_made": ["metric"]}
+
+        with (
+            patch("api.storage.recipe_storage.get_firestore_client", return_value=_fake_firestore(store)),
+            patch("api.routers.recipe_scraping.recipe_storage.find_recipe_by_url", return_value=None),
+            patch("api.routers.recipe_scraping._send_html_to_cloud_function", new_callable=AsyncMock) as mock_cf,
+            patch("api.routers.recipe_images.download_and_upload_image", new_callable=AsyncMock, return_value=image),
+            patch("api.routers.recipe_enhancement._get_household_config", return_value=HouseholdConfig({})),
+            patch("api.services.recipe_enhancer.enhance_recipe", return_value=enhanced),
+        ):
+            mock_cf.return_value = dict(scraped)
+            html = "<html><body>" + "x" * 100 + "</body></html>"
+            responses = [client.post("/recipes/parse", json={"url": scraped["url"], "html": html})]
+            responses.append(client.post("/recipes/new_recipe/enhance"))
+            responses.append(client.post("/recipes/new_recipe/enhancement/review", json={"action": "approve"}))
+            responses.append(client.put("/recipes/new_recipe", json={"ingredients": ["3 dl cream"]}))
+            responses.append(client.get("/recipes/new_recipe"))
+
+        assert [r.status_code for r in responses] == [201, 200, 200, 200, 200]
+        assert all("source_ingredients" not in r.json() for r in responses)
+        assert all("source_ingredients_meta" not in r.json() for r in responses)
+        doc = store["new_recipe"]
+        assert doc["source_ingredients"] == raw_lines
+        assert doc["source_ingredients_meta"]["import_method"] == "parse"
+        assert doc["source_ingredients_meta"]["line_count"] == 2
+        assert doc["ingredients"] == ["3 dl cream"]
+        assert doc["original"]["title"] == "Raw"
+        assert doc["image_url"] == "https://gcs/hero.jpg"
+        assert doc["enhancement_reviewed"] is True
 
 
 class TestPreviewRecipe:
