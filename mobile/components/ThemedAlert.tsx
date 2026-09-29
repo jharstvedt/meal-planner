@@ -200,12 +200,12 @@ export const ThemedAlert = ({ alert, onDismiss }: ThemedAlertProps) => {
                     tone={buttonTone(button.style)}
                     size="md"
                     onPress={() => handlePress(button)}
-                    style={[
+                    style={StyleSheet.flatten([
                       styles.alertButton,
                       shouldStackButtons
                         ? styles.alertButtonStacked
                         : styles.alertButtonRow,
-                    ]}
+                    ])}
                     testID={`alert-button-${button.text}`}
                   />
                 ))
@@ -215,7 +215,10 @@ export const ThemedAlert = ({ alert, onDismiss }: ThemedAlertProps) => {
                   variant="primary"
                   size="md"
                   onPress={() => handlePress()}
-                  style={[styles.alertButton, styles.alertButtonRow]}
+                  style={StyleSheet.flatten([
+                    styles.alertButton,
+                    styles.alertButtonRow,
+                  ])}
                   testID="alert-button-OK"
                 />
               )}
