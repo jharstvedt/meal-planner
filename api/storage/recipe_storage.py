@@ -12,6 +12,11 @@ from google.cloud.firestore_v1 import DELETE_FIELD, DocumentSnapshot, FieldFilte
 
 from api.models.recipe import DietLabel, MealLabel, OriginalRecipe, Recipe, RecipeCreate, RecipeUpdate
 from api.storage.firestore_client import RECIPES_COLLECTION, get_firestore_client
+from api.storage.source_ingredients import (
+    SourceIngredientCapture,
+    load_source_ingredient_fields,
+    source_ingredient_fields,
+)
 from api.storage.structured_ingredients import (
     apply_structured_write,
     load_structured_fields,
@@ -89,6 +94,7 @@ def _doc_to_recipe(doc_id: str, data: dict) -> Recipe:
         created_by=data.get("created_by"),
         copied_from=data.get("copied_from"),
         **load_structured_fields(data),
+        **load_source_ingredient_fields(data),
     )
 
 
@@ -134,13 +140,14 @@ def find_recipe_by_url(url: str) -> Recipe | None:
     return None
 
 
-def save_recipe(
+def save_recipe(  # noqa: PLR0913
     recipe: RecipeCreate,
     *,
     recipe_id: str | None = None,
     enhancement: EnhancementMetadata | None = None,
     household_id: str | None = None,
     created_by: str | None = None,
+    source_ingredients: SourceIngredientCapture | None = None,
 ) -> Recipe:
     """Save a new recipe to Firestore.
 
@@ -150,6 +157,7 @@ def save_recipe(
         enhancement: Optional AI enhancement metadata.
         household_id: The household that owns this recipe.
         created_by: Email of the user who created the recipe.
+        source_ingredients: Import-source provenance; written only when creating a new document.
 
     Returns:
         The saved recipe with its document ID.
@@ -246,6 +254,8 @@ def save_recipe(
     structured_update = structured_fields_for_write(recipe.ingredients, existing_data, is_new=existing_data is None)
     data.update(structured_update)
 
+    data.update(source_ingredient_fields(source_ingredients if existing_data is None else None))
+
     doc_ref.set(data, merge=True)
 
     # Type cast visibility to match Recipe model's Literal type
@@ -272,6 +282,7 @@ def save_recipe(
         visibility=visibility_value,  # type: ignore[arg-type]
         created_by=created_by,
         **load_structured_fields(persisted_structured),
+        **load_source_ingredient_fields(data if existing_data is None else existing_data),
         **recipe.model_dump(exclude={"household_id", "visibility", "created_by"}),
     )
 

@@ -16,11 +16,13 @@ from api.auth.firebase import require_auth
 from api.auth.helpers import require_household
 from api.auth.models import AuthenticatedUser
 from api.models.recipe import DietLabel, MealLabel, Recipe, RecipeParseRequest, RecipePreview, RecipeScrapeRequest
+from api.models.structured_ingredient import ImportMethod
 from api.routers.recipe_enhancement import _get_household_config, _try_enhance, _try_enhance_preview
 from api.routers.recipe_images import ingest_recipe_image
 from api.services.html_fetcher import FetchError, FetchResult, fetch_html
 from api.services.recipe_mapper import build_recipe_create_from_scraped
 from api.storage import recipe_storage
+from api.storage.source_ingredients import capture_source_ingredients
 
 logger = logging.getLogger(__name__)
 
@@ -163,13 +165,18 @@ async def _parse_html_or_raise(url: str, html: str) -> dict:
     return parse_result
 
 
-async def _save_and_process_recipe(scraped_data: dict, *, household_id: str, created_by: str, enhance: bool) -> Recipe:
-    """Shared pipeline: build RecipeCreate, save, ingest image, optionally enhance.
+async def _save_and_process_recipe(
+    scraped_data: dict, *, household_id: str, created_by: str, enhance: bool, import_method: ImportMethod
+) -> Recipe:
+    """Shared pipeline: build RecipeCreate, save with source provenance, ingest image, optionally enhance.
 
     Used by both /scrape and /parse endpoints to eliminate duplication.
     """
     recipe_create = build_recipe_create_from_scraped(scraped_data)
-    saved_recipe = recipe_storage.save_recipe(recipe_create, household_id=household_id, created_by=created_by)
+    source = capture_source_ingredients(scraped_data.get("ingredients"), import_method=import_method)
+    saved_recipe = recipe_storage.save_recipe(
+        recipe_create, household_id=household_id, created_by=created_by, source_ingredients=source
+    )
     saved_recipe = await ingest_recipe_image(saved_recipe, household_id=household_id)
 
     if enhance:  # pragma: no cover
@@ -208,7 +215,7 @@ async def scrape_recipe(
         scraped_data["meal_label"] = meal_label.value
 
     return await _save_and_process_recipe(
-        scraped_data, household_id=household_id, created_by=user.email, enhance=enhance
+        scraped_data, household_id=household_id, created_by=user.email, enhance=enhance, import_method="scrape"
     )
 
 
@@ -240,7 +247,7 @@ async def parse_recipe(
         scraped_data["meal_label"] = meal_label.value
 
     return await _save_and_process_recipe(
-        scraped_data, household_id=household_id, created_by=user.email, enhance=enhance
+        scraped_data, household_id=household_id, created_by=user.email, enhance=enhance, import_method="parse"
     )
 
 

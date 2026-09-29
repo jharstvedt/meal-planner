@@ -1,8 +1,23 @@
 """Structured ingredient Pydantic models for recipe ingredient parsing."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+ImportMethod = Literal["scrape", "parse"]
+
+
+class SourceIngredientsMeta(BaseModel):
+    """Provenance of the ingredient lines received from an import source, captured once at import."""
+
+    extractor: str = Field(description="Component that extracted the lines from the source (e.g. 'recipe-scrapers')")
+    import_method: ImportMethod = Field(description="'scrape' (server fetched URL) or 'parse' (client-provided HTML)")
+    captured_at: datetime = Field(description="Aware UTC timestamp when the lines were captured")
+    line_count: int = Field(ge=0, description="Number of lines the source returned, before any storage bounds")
+    truncated: bool = Field(default=False, description="True if storage bounds shortened the stored lines")
+
+    model_config = ConfigDict(frozen=True)
 
 
 class Measurement(BaseModel):
