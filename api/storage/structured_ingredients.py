@@ -2,6 +2,7 @@
 
 import logging
 from collections import deque
+from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
@@ -23,6 +24,15 @@ STRUCTURED_INGREDIENTS_FIELD = "structured_ingredients"
 STRUCTURED_INGREDIENTS_META_FIELD = "structured_ingredients_meta"
 _TEMP_ID_PREFIX = "tmp_"
 _ITEMS_ADAPTER = TypeAdapter(list[StructuredIngredient])
+
+
+class StructuredStatus(StrEnum):
+    """State of stored structured ingredients relative to the authoritative ingredient lines."""
+
+    CURRENT = "current"
+    MISSING = "missing"
+    STALE = "stale"
+    MALFORMED = "malformed"
 
 
 def is_structured_ingredients_current(
@@ -50,6 +60,33 @@ def is_structured_ingredients_current(
         and meta.wrapper_version == WRAPPER_VERSION
         and meta.ingredients_hash == compute_ingredients_hash(ingredients)
     )
+
+
+def structured_ingredients_status(ingredients: list[str], existing_data: object) -> StructuredStatus:
+    """Classify stored structured ingredients against the lines they should describe.
+
+    Args:
+        ingredients: The authoritative ingredient lines.
+        existing_data: The stored Firestore document data.
+
+    Returns:
+        MISSING if neither field is stored, MALFORMED if stored data fails validation or does not
+        line up with ``ingredients``, STALE if the hash or versions differ, otherwise CURRENT.
+    """
+    existing = existing_data if isinstance(existing_data, dict) else {}
+    items, meta = existing.get(STRUCTURED_INGREDIENTS_FIELD), existing.get(STRUCTURED_INGREDIENTS_META_FIELD)
+    if items is None and meta is None:
+        return StructuredStatus.MISSING
+    try:
+        parsed_items = _ITEMS_ADAPTER.validate_python(items)
+        parsed_meta = StructuredIngredientsMeta.model_validate(meta)
+    except ValidationError:
+        return StructuredStatus.MALFORMED
+    if not is_structured_ingredients_current(ingredients, parsed_meta):
+        return StructuredStatus.STALE
+    if [item.raw_text for item in parsed_items] != ingredients:
+        return StructuredStatus.MALFORMED
+    return StructuredStatus.CURRENT
 
 
 def assign_stable_ids(lines: list[str], previous_items: object = None) -> list[str]:
@@ -117,13 +154,10 @@ def structured_fields_for_write(ingredients: object, existing_data: object = Non
     if not isinstance(ingredients, list):
         return _deleted_fields() if has_stored and not is_new else {}
 
-    previous_items = existing.get(STRUCTURED_INGREDIENTS_FIELD)
-    if isinstance(previous_items, list) and is_structured_ingredients_current(
-        ingredients, existing.get(STRUCTURED_INGREDIENTS_META_FIELD)
-    ):
+    if structured_ingredients_status(ingredients, existing) is StructuredStatus.CURRENT:
         return {}
 
-    fields = build_structured_fields(ingredients, previous_items)
+    fields = build_structured_fields(ingredients, existing.get(STRUCTURED_INGREDIENTS_FIELD))
     if fields is not None:
         return fields
     return {} if is_new else _deleted_fields()
