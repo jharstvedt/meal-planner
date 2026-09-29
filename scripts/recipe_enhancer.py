@@ -43,6 +43,7 @@ except ImportError as exc:
 from google.cloud import firestore
 
 from api.services.prompt_loader import DEFAULT_LANGUAGE, load_system_prompt
+from api.storage.structured_ingredients import structured_fields_for_write
 
 # Default Gemini model for recipe enhancement
 DEFAULT_MODEL = "gemini-2.5-flash"
@@ -197,7 +198,13 @@ def save_recipe(recipe_id: str, enhanced: dict) -> bool:
     }
 
     try:
-        db.collection("recipes").document(recipe_id).set(doc_data, merge=True)
+        doc_ref = db.collection("recipes").document(recipe_id)
+        existing = doc_ref.get()  # type: ignore[union-attr]
+        existing_data = existing.to_dict() if existing.exists else None  # type: ignore[union-attr]
+        doc_data.update(
+            structured_fields_for_write(doc_data["ingredients"], existing_data, is_new=existing_data is None)
+        )
+        doc_ref.set(doc_data, merge=True)
         return True
     except Exception as e:
         print(f"❌ Firestore error: {e}")
