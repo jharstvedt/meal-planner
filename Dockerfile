@@ -4,6 +4,7 @@ COPY --from=ghcr.io/astral-sh/uv@sha256:e85be844203885286c60ffad8a858d48afb6c5a5
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
+RUN /app/.venv/bin/python -m nltk.downloader -d /app/.venv/share/nltk_data averaged_perceptron_tagger_eng
 
 # Stage 2: Runtime image
 FROM python:3.14-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6 AS runtime
@@ -13,6 +14,7 @@ RUN groupadd --system appuser && useradd --system --gid appuser appuser
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
+ENV NLTK_DATA="/app/.venv/share/nltk_data"
 ENV PYTHONUNBUFFERED=1
 COPY api/ ./api/
 COPY config/ ./config/
